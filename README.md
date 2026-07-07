@@ -15,7 +15,6 @@ NestJS API for the CberHunt/Omnichat frontend.
 ```bash
 npm install
 copy .env.example .env
-docker compose up -d postgres
 npm run db:prepare:dev
 npm run start:dev
 ```
@@ -26,15 +25,7 @@ Default local URL:
 http://localhost:4000/api
 ```
 
-Local Docker exposes PostgreSQL on `127.0.0.1:5433` to avoid conflicts with a native PostgreSQL on `5432`.
-
-pgAdmin is optional:
-
-```bash
-docker compose up -d pgadmin
-```
-
-Open `http://localhost:5050` and connect to host `postgres`, port `5432`, user `postgres`, password `postgres`, database `db-omnichat`.
+Local setup expects PostgreSQL running natively on `127.0.0.1:5432` with database `db-omnichat`.
 
 Keep `TYPEORM_SYNC=false`. Table creation is handled by `npm run db:prepare:dev` locally and by the Heroku release phase in production.
 
@@ -44,7 +35,7 @@ Keep `TYPEORM_SYNC=false`. Table creation is handled by `npm run db:prepare:dev`
 PORT=4000
 FRONTEND_ORIGIN=http://localhost:3000
 APP_URL=http://localhost:3000
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/db-omnichat?schema=public
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/db-omnichat?schema=public
 JWT_SECRET=change-me
 TYPEORM_SYNC=false
 ```
