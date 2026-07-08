@@ -34,6 +34,7 @@ Keep `TYPEORM_SYNC=false`. Table creation is handled by `npm run db:prepare:dev`
 ```env
 PORT=4000
 FRONTEND_ORIGIN=http://localhost:3000
+FRONTEND_ORIGIN_SUFFIXES=
 APP_URL=http://localhost:3000
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/db-omnichat?schema=public
 JWT_SECRET=change-me
@@ -79,6 +80,7 @@ Configure a Heroku Postgres add-on so Heroku provides `DATABASE_URL`. Set these 
 ```env
 JWT_SECRET=change-me-long-random-secret
 FRONTEND_ORIGIN=https://your-frontend-domain.com
+FRONTEND_ORIGIN_SUFFIXES=your-vercel-team.vercel.app
 APP_URL=https://your-frontend-domain.com
 SESSION_COOKIE_SAME_SITE=none
 SUPER_ADMIN_EMAIL=admin@cberhunt.com

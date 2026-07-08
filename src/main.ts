@@ -1,26 +1,26 @@
 import cookieParser from 'cookie-parser';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { getAllowedCorsOriginSuffixes, getAllowedCorsOrigins, isAllowedCorsOrigin } from './common/cors';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
-  const origins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const allowedOrigins = getAllowedCorsOrigins();
+  const allowedOriginSuffixes = getAllowedCorsOriginSuffixes();
 
   app.use(cookieParser());
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableCors({
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     origin(origin, callback) {
-      if (!origin || origins.includes('*') || origins.includes(origin)) {
+      if (isAllowedCorsOrigin(origin, allowedOrigins, allowedOriginSuffixes)) {
         callback(null, true);
         return;
       }
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false);
     },
   });
 
