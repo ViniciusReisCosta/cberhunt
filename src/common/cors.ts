@@ -6,7 +6,12 @@ function parseList(value?: string) {
 }
 
 export function getAllowedCorsOrigins() {
-  return parseList(process.env.FRONTEND_ORIGIN || 'http://localhost:3000');
+  return Array.from(
+    new Set([
+      ...parseList(process.env.FRONTEND_ORIGIN || 'http://localhost:3000'),
+      ...parseList(process.env.APP_URL),
+    ]),
+  );
 }
 
 export function getAllowedCorsOriginSuffixes() {

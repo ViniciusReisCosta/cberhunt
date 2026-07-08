@@ -1,10 +1,20 @@
-import { isAllowedCorsOrigin } from './cors';
+import { getAllowedCorsOrigins, isAllowedCorsOrigin } from './cors';
 
 describe('CORS origin validation', () => {
   it('allows exact configured origins', () => {
     expect(
       isAllowedCorsOrigin('https://app.example.com', ['https://app.example.com'], []),
     ).toBe(true);
+  });
+
+  it('includes APP_URL as an allowed origin', () => {
+    process.env.FRONTEND_ORIGIN = 'https://frontend.example.com';
+    process.env.APP_URL = 'https://app.example.com';
+
+    expect(getAllowedCorsOrigins()).toEqual([
+      'https://frontend.example.com',
+      'https://app.example.com',
+    ]);
   });
 
   it('allows configured preview suffixes', () => {
