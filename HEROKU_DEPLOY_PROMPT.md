@@ -59,6 +59,16 @@ Variaveis de ambiente esperadas no Heroku:
 
 Use `SESSION_COOKIE_SAME_SITE=none` se frontend e backend estiverem em dominios diferentes.
 
+Stripe checkout:
+- `STRIPE_SECRET_KEY` deve ser uma chave secreta `sk_live_...` ou `sk_test_...`.
+- `STRIPE_WEBHOOK_SECRET` deve ser o segredo do webhook `whsec_...`.
+- `STRIPE_PRICE_*` deve ser ID de Price `price_...`, nao `unit_amount`.
+- Valores esperados dos Prices:
+  - Starter: `unit_amount=9700` (R$ 97,00)
+  - Professional: `unit_amount=19700` (R$ 197,00)
+  - Enterprise: `unit_amount=100000` (R$ 1000,00)
+- Depois de configurar os envs, rodar `heroku run npm run db:prepare -a cberhunt-432afab3c888`.
+
 Depois do deploy, validar:
 - `heroku logs --tail`
 - `heroku run npm run db:prepare`

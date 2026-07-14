@@ -52,6 +52,8 @@ STRIPE_PRICE_PROFESSIONAL=
 STRIPE_PRICE_ENTERPRISE=
 ```
 
+For checkout, `STRIPE_PRICE_*` must be Stripe Price IDs that start with `price_`. Do not use numeric amounts like `9700`.
+
 ## Seed
 
 `npm run db:prepare:dev` synchronizes the local schema and runs the structural seed.
@@ -90,6 +92,25 @@ SUPER_ADMIN_PASSWORD=change-this-password
 ```
 
 Stripe variables are only required when checkout is active.
+
+For Stripe checkout on Heroku:
+
+```bash
+heroku config:set STRIPE_SECRET_KEY=sk_live_... -a cberhunt-432afab3c888
+heroku config:set STRIPE_WEBHOOK_SECRET=whsec_... -a cberhunt-432afab3c888
+heroku config:set STRIPE_PRICE_STARTER=price_... -a cberhunt-432afab3c888
+heroku config:set STRIPE_PRICE_PROFESSIONAL=price_... -a cberhunt-432afab3c888
+heroku config:set STRIPE_PRICE_ENTERPRISE=price_... -a cberhunt-432afab3c888
+heroku run npm run db:prepare -a cberhunt-432afab3c888
+```
+
+The expected Stripe Price amounts are:
+
+- Starter: `unit_amount=9700` for R$ 97,00
+- Professional: `unit_amount=19700` for R$ 197,00
+- Enterprise: `unit_amount=100000` for R$ 1000,00
+
+After configuring, `GET /api/plans` must show `stripePriceId` filled for all plans.
 
 After deploy, validate:
 

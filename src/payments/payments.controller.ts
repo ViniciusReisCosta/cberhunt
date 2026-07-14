@@ -33,15 +33,13 @@ export class PaymentsController {
     @InjectRepository(Invoice)
     private readonly invoices: Repository<Invoice>,
   ) {
-    const secretKey = this.config.get<string>('STRIPE_SECRET_KEY');
+    const secretKey = this.getConfiguredStripeSecretKey();
     this.stripe = secretKey ? new Stripe(secretKey) : null;
   }
 
   @Post('subscribe')
   async subscribe(@Req() req: Request, @Body() body: { planSlug?: string }) {
-    if (!this.stripe) {
-      throw new InternalServerErrorException('Stripe is not configured');
-    }
+    const stripe = this.getStripeOrThrow('checkout');
 
     const user = await this.auth.requireAccess(req, { requirePayment: false });
     if (user.role !== 'company_admin' && user.role !== 'super_admin') {
@@ -53,13 +51,11 @@ export class PaymentsController {
 
     const plan = await this.plans.findOne({ where: { slug: body.planSlug || '' } });
     if (!plan) throw new NotFoundException('Plan not found');
-    if (!plan.stripePriceId) {
-      throw new BadRequestException('Stripe price is not configured for this plan');
-    }
+    const stripePriceId = this.getStripePriceIdOrThrow(plan);
 
     let stripeCustomerId = user.company.stripeCustomerId;
     if (!stripeCustomerId) {
-      const customer = await this.stripe.customers.create({
+      const customer = await stripe.customers.create({
         email: user.company.email || user.email,
         name: user.company.name,
         metadata: { companyId: user.company.id },
@@ -69,11 +65,11 @@ export class PaymentsController {
     }
 
     const appUrl = this.getAppUrl();
-    const session = await this.stripe.checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: stripeCustomerId,
       payment_method_types: ['card'],
-      line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+      line_items: [{ price: stripePriceId, quantity: 1 }],
       client_reference_id: user.company.id,
       metadata: {
         companyId: user.company.id,
@@ -101,20 +97,23 @@ export class PaymentsController {
     @Req() req: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature?: string,
   ) {
-    if (!this.stripe) {
-      throw new InternalServerErrorException('Stripe is not configured');
-    }
+    const stripe = this.getStripeOrThrow('webhook');
 
     const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!signature || !webhookSecret) {
-      throw new BadRequestException('Missing Stripe webhook configuration');
+      console.error('Missing Stripe webhook configuration', { signature, webhookSecret });
+      throw new BadRequestException({
+        error: 'Missing Stripe webhook configuration',
+        code: 'STRIPE_WEBHOOK_SECRET_MISSING',
+        config: 'STRIPE_WEBHOOK_SECRET',
+      });
     }
 
     let event: Stripe.Event;
     try {
       const payload = req.rawBody;
       if (!payload) throw new Error('Missing raw request body');
-      event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid webhook payload';
       throw new BadRequestException(message);
@@ -266,5 +265,58 @@ export class PaymentsController {
       this.config.get<string>('FRONTEND_ORIGIN') ||
       'http://localhost:3000'
     );
+  }
+
+  private getConfiguredStripeSecretKey() {
+    return this.config.get<string>('STRIPE_SECRET_KEY')?.trim() || '';
+  }
+
+  private getStripeOrThrow(context: 'checkout' | 'webhook') {
+    if (this.stripe) return this.stripe;
+
+    throw new InternalServerErrorException({
+      error:
+        context === 'checkout'
+          ? 'Stripe checkout is not configured on the backend'
+          : 'Stripe webhook handling is not configured on the backend',
+      code: 'STRIPE_SECRET_KEY_MISSING',
+      config: 'STRIPE_SECRET_KEY',
+    });
+  }
+
+  private getStripePriceIdOrThrow(plan: Plan) {
+    const config = this.getStripePriceConfigName(plan.slug);
+    const priceId = plan.stripePriceId?.trim() || this.config.get<string>(config)?.trim();
+
+    if (!priceId) {
+      throw new BadRequestException({
+        error: `Stripe price is not configured for the ${plan.name} plan`,
+        code: 'STRIPE_PRICE_MISSING',
+        config,
+      });
+    }
+
+    if (!priceId.startsWith('price_')) {
+      throw new BadRequestException({
+        error: `Stripe price for the ${plan.name} plan must be a Price ID starting with "price_"`,
+        code: 'STRIPE_PRICE_INVALID',
+        config,
+      });
+    }
+
+    return priceId;
+  }
+
+  private getStripePriceConfigName(planSlug: string) {
+    switch (planSlug) {
+      case 'starter':
+        return 'STRIPE_PRICE_STARTER';
+      case 'professional':
+        return 'STRIPE_PRICE_PROFESSIONAL';
+      case 'enterprise':
+        return 'STRIPE_PRICE_ENTERPRISE';
+      default:
+        return 'STRIPE_PRICE_*';
+    }
   }
 }

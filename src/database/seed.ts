@@ -4,6 +4,17 @@ import { ChannelType } from './entities/channel-type.entity';
 import { Plan } from './entities/plan.entity';
 import { User } from './entities/user.entity';
 
+function getStripePriceId(envName: string) {
+  const value = process.env[envName]?.trim();
+  if (!value) return null;
+
+  if (!value.startsWith('price_')) {
+    throw new Error(`${envName} must be a Stripe Price ID starting with "price_". Do not use unit_amount values.`);
+  }
+
+  return value;
+}
+
 async function main() {
   await AppDataSource.initialize();
 
@@ -22,7 +33,7 @@ async function main() {
         maxChannels: 2,
         maxMessages: 1000,
         features: JSON.stringify(['Unified Inbox', '2 Channels', 'Basic Chatbot', 'Email Support']),
-        stripePriceId: process.env.STRIPE_PRICE_STARTER || null,
+        stripePriceId: getStripePriceId('STRIPE_PRICE_STARTER'),
       },
       {
         id: 'plan_professional',
@@ -40,7 +51,7 @@ async function main() {
           'Analytics',
           'Priority Support',
         ]),
-        stripePriceId: process.env.STRIPE_PRICE_PROFESSIONAL || null,
+        stripePriceId: getStripePriceId('STRIPE_PRICE_PROFESSIONAL'),
       },
       {
         id: 'plan_enterprise',
@@ -58,7 +69,7 @@ async function main() {
           'Dedicated Support',
           'SLA Guarantee',
         ]),
-        stripePriceId: process.env.STRIPE_PRICE_ENTERPRISE || null,
+        stripePriceId: getStripePriceId('STRIPE_PRICE_ENTERPRISE'),
       },
     ],
     ['slug'],
