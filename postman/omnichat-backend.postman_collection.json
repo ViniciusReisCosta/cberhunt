@@ -1,0 +1,932 @@
+{
+  "info": {
+    "_postman_id": "0e25d2f7-1c39-4d61-8eb1-omnichat-api",
+    "name": "Omnichat Backend API",
+    "description": "Collection for the NestJS backend in D:\\nodeprojects\\omnichat_backend. Import the matching environment file, select it, then run Auth > Login Super Admin first. Postman stores the cber_session cookie automatically.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://cberhunt-432afab3c888.herokuapp.com"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Public",
+      "item": [
+        {
+          "name": "API Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api"
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health"
+          }
+        },
+        {
+          "name": "Public Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/public/metrics"
+          }
+        },
+        {
+          "name": "Plans",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.slug) pm.environment.set('planSlug', data[0].slug);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/plans"
+          }
+        },
+        {
+          "name": "Channel Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/channel-types"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Login responses set the cber_session cookie. Postman will attach it automatically on later requests for the same baseUrl.",
+      "item": [
+        {
+          "name": "Login Super Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.user?.id) pm.environment.set('userId', data.user.id);",
+                  "if (data.user?.company?.id) pm.environment.set('companyId', data.user.company.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Register Company Admin",
+          "description": "Creates a company with paymentStatus pending. Dashboard access remains locked until Stripe confirms payment or a super admin marks the company as paid.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.user?.id) pm.environment.set('userId', data.user.id);",
+                  "if (data.user?.company?.id) pm.environment.set('companyId', data.user.company.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Company Admin\",\n  \"email\": \"{{companyAdminEmail}}\",\n  \"password\": \"{{companyAdminPassword}}\",\n  \"companyName\": \"{{testCompanyName}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          }
+        },
+        {
+          "name": "Login Company Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.user?.id) pm.environment.set('userId', data.user.id);",
+                  "if (data.user?.company?.id) pm.environment.set('companyId', data.user.company.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{companyAdminEmail}}\",\n  \"password\": \"{{companyAdminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Setup Test Workspace",
+      "description": "Run with a super admin session. This creates an active paid company and a company admin user so the company-level endpoints can be tested.",
+      "item": [
+        {
+          "name": "Create Company",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('companyId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testCompanyName}}\",\n  \"email\": \"{{testCompanyEmail}}\",\n  \"phone\": \"+5511999999999\",\n  \"address\": \"Postman Street, 123\",\n  \"plan\": \"starter\"\n}"
+            },
+            "url": "{{baseUrl}}/api/companies"
+          }
+        },
+        {
+          "name": "Activate Company For Tests",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": true,\n  \"paymentStatus\": \"paid\",\n  \"plan\": \"starter\"\n}"
+            },
+            "url": "{{baseUrl}}/api/companies/{{companyId}}"
+          }
+        },
+        {
+          "name": "Create Company Admin User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('agentId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Company Admin\",\n  \"email\": \"{{companyAdminEmail}}\",\n  \"password\": \"{{companyAdminPassword}}\",\n  \"role\": \"company_admin\",\n  \"companyId\": \"{{companyId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/agents"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies",
+      "item": [
+        {
+          "name": "List Companies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.id && !pm.environment.get('companyId')) pm.environment.set('companyId', data[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/companies?search=&status="
+          }
+        },
+        {
+          "name": "Get Company",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/companies/{{companyId}}"
+          }
+        },
+        {
+          "name": "Update Company Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"welcomeMessage\": \"Ola! Como podemos ajudar?\",\n  \"businessHoursStart\": \"08:00\",\n  \"businessHoursEnd\": \"18:00\",\n  \"phone\": \"+5511988887777\",\n  \"address\": \"Updated Address\"\n}"
+            },
+            "url": "{{baseUrl}}/api/companies/{{companyId}}"
+          }
+        },
+        {
+          "name": "Delete Company",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/companies/{{companyId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Agents",
+      "item": [
+        {
+          "name": "List Agents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.id) pm.environment.set('agentId', data[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/agents?companyId={{companyId}}"
+          }
+        },
+        {
+          "name": "Create Agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('agentId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Agent\",\n  \"email\": \"postman-agent@example.com\",\n  \"password\": \"Agent123!\",\n  \"role\": \"agent\",\n  \"companyId\": \"{{companyId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/agents"
+          }
+        },
+        {
+          "name": "Get Agent",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/agents/{{agentId}}"
+          }
+        },
+        {
+          "name": "Update Agent",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Agent Updated\",\n  \"online\": true,\n  \"role\": \"agent\"\n}"
+            },
+            "url": "{{baseUrl}}/api/agents/{{agentId}}"
+          }
+        },
+        {
+          "name": "Delete Agent",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/agents/{{agentId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Channels",
+      "item": [
+        {
+          "name": "List Channel Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/channel-types"
+          }
+        },
+        {
+          "name": "List Channels",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.id) pm.environment.set('channelId', data[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/channels?companyId={{companyId}}"
+          }
+        },
+        {
+          "name": "Create Channel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('channelId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"whatsapp\",\n  \"name\": \"WhatsApp Postman\",\n  \"accountId\": \"5511999999999\",\n  \"accessToken\": \"token-demo\",\n  \"connected\": true,\n  \"companyId\": \"{{companyId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/channels"
+          }
+        },
+        {
+          "name": "Update Channel",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"WhatsApp Postman Updated\",\n  \"connected\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/channels/{{channelId}}"
+          }
+        },
+        {
+          "name": "Delete Channel",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/channels/{{channelId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "List Conversations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.id) pm.environment.set('conversationId', data[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/conversations?status=&channel=&search="
+          }
+        },
+        {
+          "name": "Create Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('conversationId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerName\": \"Cliente Postman\",\n  \"channelId\": \"{{channelId}}\",\n  \"customerPhone\": \"+5511977776666\",\n  \"customerEmail\": \"cliente.postman@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/api/conversations"
+          }
+        },
+        {
+          "name": "Get Conversation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/conversations/{{conversationId}}"
+          }
+        },
+        {
+          "name": "Update Conversation",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"pending\",\n  \"agentId\": \"{{agentId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/conversations/{{conversationId}}"
+          }
+        },
+        {
+          "name": "Create Agent Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Mensagem enviada pelo Postman\",\n  \"senderType\": \"agent\"\n}"
+            },
+            "url": "{{baseUrl}}/api/conversations/{{conversationId}}/messages"
+          }
+        },
+        {
+          "name": "Create Customer Message",
+          "description": "This endpoint allows customer/bot senderType without auth and can trigger chatbot rules.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Quero saber preco\",\n  \"senderType\": \"customer\"\n}"
+            },
+            "url": "{{baseUrl}}/api/conversations/{{conversationId}}/messages"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/dashboard/stats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chatbot Rules",
+      "item": [
+        {
+          "name": "List Chatbot Rules",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.id) pm.environment.set('chatbotRuleId', data[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chatbot/rules?companyId={{companyId}}"
+          }
+        },
+        {
+          "name": "Create Chatbot Rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('chatbotRuleId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"keyword\": \"preco,plano,valor\",\n  \"response\": \"Temos planos a partir de R$ 97 por mes.\",\n  \"active\": true,\n  \"companyId\": \"{{companyId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/chatbot/rules"
+          }
+        },
+        {
+          "name": "Update Chatbot Rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"keyword\": \"preco,plano,valor,assinatura\",\n  \"response\": \"Nosso plano Starter custa R$ 97 por mes.\",\n  \"active\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/chatbot/rules/{{chatbotRuleId}}"
+          }
+        },
+        {
+          "name": "Delete Chatbot Rule",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/chatbot/rules/{{chatbotRuleId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "List Quick Replies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.id) pm.environment.set('quickReplyId', data[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/quick-replies"
+          }
+        },
+        {
+          "name": "Create Quick Reply",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('quickReplyId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Obrigado pelo contato. Ja vamos te atender.\",\n  \"active\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/quick-replies"
+          }
+        },
+        {
+          "name": "Update Quick Reply",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Obrigado pelo contato. Nossa equipe ja vai responder.\",\n  \"active\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/quick-replies/{{quickReplyId}}"
+          }
+        },
+        {
+          "name": "Delete Quick Reply",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/quick-replies/{{quickReplyId}}"
+          }
+        },
+        {
+          "name": "Get Notification Preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/notification-preferences"
+          }
+        },
+        {
+          "name": "Update Notification Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailNotifications\": true,\n  \"browserNotifications\": true,\n  \"newMessageAlerts\": true,\n  \"assignmentAlerts\": true,\n  \"paymentReminders\": false\n}"
+            },
+            "url": "{{baseUrl}}/api/notification-preferences"
+          }
+        },
+        {
+          "name": "List API Keys",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data[0]?.id) pm.environment.set('apiKeyId', data[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/api-keys"
+          }
+        },
+        {
+          "name": "Create API Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.environment.set('apiKeyId', data.id);",
+                  "if (data.token) pm.environment.set('apiToken', data.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman API Key\"\n}"
+            },
+            "url": "{{baseUrl}}/api/api-keys"
+          }
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/api-keys/{{apiKeyId}}"
+          }
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/invoices"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create Stripe Checkout Session",
+          "description": "Requires STRIPE_SECRET_KEY and STRIPE_PRICE_* configured in the backend, then db:prepare run so plans have stripePriceId.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.url) pm.environment.set('checkoutUrl', data.url);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planSlug\": \"{{planSlug}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/payments/subscribe"
+          }
+        },
+        {
+          "name": "Stripe Webhook",
+          "description": "This endpoint requires a valid Stripe-Signature header generated by Stripe. Use Stripe CLI or a real webhook event for a successful request.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "stripe-signature",
+                "value": "{{stripeSignature}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_postman_sample\",\n  \"object\": \"event\",\n  \"type\": \"checkout.session.completed\",\n  \"data\": {\n    \"object\": {\n      \"id\": \"cs_test_sample\",\n      \"object\": \"checkout.session\",\n      \"client_reference_id\": \"{{companyId}}\",\n      \"metadata\": {\n        \"companyId\": \"{{companyId}}\",\n        \"planSlug\": \"{{planSlug}}\"\n      }\n    }\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/payments/webhook"
+          }
+        }
+      ]
+    }
+  ]
+}

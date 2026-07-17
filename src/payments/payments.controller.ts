@@ -49,7 +49,9 @@ export class PaymentsController {
       throw new BadRequestException('Company ID required');
     }
 
-    const plan = await this.plans.findOne({ where: { slug: body.planSlug || '' } });
+    const plan = await this.plans.findOne({
+      where: { slug: body.planSlug || '' },
+    });
     if (!plan) throw new NotFoundException('Plan not found');
     const stripePriceId = this.getStripePriceIdOrThrow(plan);
 
@@ -61,27 +63,35 @@ export class PaymentsController {
         metadata: { companyId: user.company.id },
       });
       stripeCustomerId = customer.id;
-      await this.companies.update({ id: user.company.id }, { stripeCustomerId });
+      await this.companies.update(
+        { id: user.company.id },
+        { stripeCustomerId },
+      );
     }
 
     const appUrl = this.getAppUrl();
+    const metadata = {
+      companyId: user.company.id,
+      userId: user.id,
+      planSlug: plan.slug,
+    };
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: stripeCustomerId,
       payment_method_types: ['card'],
       line_items: [{ price: stripePriceId, quantity: 1 }],
       client_reference_id: user.company.id,
-      metadata: {
-        companyId: user.company.id,
-        userId: user.id,
-        planSlug: plan.slug,
-      },
+      metadata,
+      subscription_data: { metadata },
       success_url: `${appUrl}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/billing?checkout=canceled`,
     });
 
     if (!session.url) {
-      throw new InternalServerErrorException('Stripe did not return a checkout URL');
+      throw new InternalServerErrorException(
+        'Stripe did not return a checkout URL',
+      );
     }
 
     await this.companies.update(
@@ -101,7 +111,6 @@ export class PaymentsController {
 
     const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!signature || !webhookSecret) {
-      console.error('Missing Stripe webhook configuration', { signature, webhookSecret });
       throw new BadRequestException({
         error: 'Missing Stripe webhook configuration',
         code: 'STRIPE_WEBHOOK_SECRET_MISSING',
@@ -115,28 +124,84 @@ export class PaymentsController {
       if (!payload) throw new Error('Missing raw request body');
       event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid webhook payload';
+      const message =
+        error instanceof Error ? error.message : 'Invalid webhook payload';
       throw new BadRequestException(message);
     }
 
+    console.log('Stripe webhook received', {
+      id: event.id,
+      type: event.type,
+      livemode: event.livemode,
+    });
+
     switch (event.type) {
       case 'checkout.session.completed':
-        await this.handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        await this.handleCheckoutCompleted(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+      case 'checkout.session.async_payment_succeeded':
+        await this.handleCheckoutCompleted(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+      case 'checkout.session.async_payment_failed':
+        await this.handleCheckoutSessionStatus(
+          event.data.object as Stripe.Checkout.Session,
+          PaymentStatus.Failed,
+          false,
+        );
         break;
       case 'checkout.session.expired':
-        await this.handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
+        await this.handleCheckoutExpired(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+      case 'payment_intent.succeeded':
+        await this.handlePaymentIntent(
+          event.data.object as Stripe.PaymentIntent,
+          PaymentStatus.Paid,
+          true,
+        );
+        break;
+      case 'payment_intent.payment_failed':
+        await this.handlePaymentIntent(
+          event.data.object as Stripe.PaymentIntent,
+          PaymentStatus.Failed,
+          false,
+        );
+        break;
+      case 'payment_intent.canceled':
+        await this.handlePaymentIntent(
+          event.data.object as Stripe.PaymentIntent,
+          PaymentStatus.Canceled,
+          false,
+        );
         break;
       case 'invoice.paid':
-        await this.handleInvoice(event.data.object as Stripe.Invoice, PaymentStatus.Paid, true);
+        await this.handleInvoice(
+          event.data.object as Stripe.Invoice,
+          PaymentStatus.Paid,
+          true,
+        );
         break;
       case 'invoice.payment_failed':
-        await this.handleInvoice(event.data.object as Stripe.Invoice, PaymentStatus.Failed, false);
+        await this.handleInvoice(
+          event.data.object as Stripe.Invoice,
+          PaymentStatus.Failed,
+          false,
+        );
         break;
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
         await this.handleSubscription(event.data.object as Stripe.Subscription);
         break;
       default:
+        console.log('Stripe webhook ignored', {
+          id: event.id,
+          type: event.type,
+        });
         break;
     }
 
@@ -144,42 +209,102 @@ export class PaymentsController {
   }
 
   private async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-    const companyId = session.metadata?.companyId || session.client_reference_id;
-    if (!companyId) return;
-
-    await this.updateCompanyBilling(companyId, {
-      paymentStatus: PaymentStatus.Paid,
-      active: true,
-      stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
-      stripeSubscriptionId: typeof session.subscription === 'string' ? session.subscription : null,
-      plan: session.metadata?.planSlug,
-    });
+    return this.handleCheckoutSessionStatus(session, PaymentStatus.Paid, true);
   }
 
   private async handleCheckoutExpired(session: Stripe.Checkout.Session) {
-    const companyId = session.metadata?.companyId || session.client_reference_id;
-    if (!companyId) return;
-    await this.updateCompanyBilling(companyId, {
-      paymentStatus: PaymentStatus.Canceled,
-      active: false,
+    return this.handleCheckoutSessionStatus(
+      session,
+      PaymentStatus.Canceled,
+      false,
+    );
+  }
+
+  private async handleCheckoutSessionStatus(
+    session: Stripe.Checkout.Session,
+    paymentStatus: PaymentStatus,
+    active: boolean,
+  ) {
+    const companyId =
+      session.metadata?.companyId || session.client_reference_id;
+    if (!companyId) return false;
+
+    const stripeCustomerId = this.getExpandableId(session.customer);
+    const stripeSubscriptionId = this.getExpandableId(session.subscription);
+    const data: Partial<Company> = {
+      paymentStatus,
+      active,
+    };
+    if (stripeCustomerId) data.stripeCustomerId = stripeCustomerId;
+    if (stripeSubscriptionId) data.stripeSubscriptionId = stripeSubscriptionId;
+    if (session.metadata?.planSlug) data.plan = session.metadata.planSlug;
+
+    await this.updateCompanyBilling(companyId, data);
+    return true;
+  }
+
+  private async handlePaymentIntent(
+    paymentIntent: Stripe.PaymentIntent,
+    paymentStatus: PaymentStatus,
+    active: boolean,
+  ) {
+    const session =
+      await this.retrieveCheckoutSessionFromPaymentIntent(paymentIntent);
+    if (session) {
+      const updated = await this.handleCheckoutSessionStatus(
+        session,
+        paymentStatus,
+        active,
+      );
+      if (updated) return;
+    }
+
+    const customerId = this.getExpandableId(paymentIntent.customer);
+    const company = paymentIntent.metadata?.companyId
+      ? await this.companies.findOne({
+          where: { id: paymentIntent.metadata.companyId },
+        })
+      : await this.findCompanyByStripeIds(customerId, null);
+
+    if (!company) {
+      console.warn('Stripe payment intent did not match a company', {
+        paymentIntentId: paymentIntent.id,
+        customerId,
+        status: paymentIntent.status,
+      });
+      return;
+    }
+
+    await this.updateCompanyBilling(company.id, {
+      paymentStatus,
+      active,
+      stripeCustomerId: customerId || company.stripeCustomerId,
+      plan: paymentIntent.metadata?.planSlug || company.plan,
     });
   }
 
-  private async handleInvoice(invoice: Stripe.Invoice, status: PaymentStatus, active: boolean) {
+  private async handleInvoice(
+    invoice: Stripe.Invoice,
+    status: PaymentStatus,
+    active: boolean,
+  ) {
     const subscriptionId = this.getInvoiceSubscriptionId(invoice);
     const company = await this.findCompanyByStripeIds(
-      typeof invoice.customer === 'string' ? invoice.customer : null,
+      this.getExpandableId(invoice.customer),
       subscriptionId,
     );
     if (!company) return;
 
-    await this.updateCompanyBilling(company.id, { paymentStatus: status, active });
+    await this.updateCompanyBilling(company.id, {
+      paymentStatus: status,
+      active,
+    });
     await this.upsertInvoice(company.id, invoice, status);
   }
 
   private async handleSubscription(subscription: Stripe.Subscription) {
     const company = await this.findCompanyByStripeIds(
-      typeof subscription.customer === 'string' ? subscription.customer : null,
+      this.getExpandableId(subscription.customer),
       subscription.id,
     );
     if (!company) return;
@@ -188,16 +313,22 @@ export class PaymentsController {
     await this.updateCompanyBilling(company.id, {
       paymentStatus,
       active: paymentStatus === PaymentStatus.Paid,
-      stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : null,
+      stripeCustomerId: this.getExpandableId(subscription.customer),
       stripeSubscriptionId: subscription.id,
     });
   }
 
-  private async updateCompanyBilling(companyId: string, data: Partial<Company>) {
+  private async updateCompanyBilling(
+    companyId: string,
+    data: Partial<Company>,
+  ) {
     await this.companies.update({ id: companyId }, data);
   }
 
-  private async findCompanyByStripeIds(customerId?: string | null, subscriptionId?: string | null) {
+  private async findCompanyByStripeIds(
+    customerId?: string | null,
+    subscriptionId?: string | null,
+  ) {
     const where: FindOptionsWhere<Company>[] = [];
     if (customerId) where.push({ stripeCustomerId: customerId });
     if (subscriptionId) where.push({ stripeSubscriptionId: subscriptionId });
@@ -205,7 +336,11 @@ export class PaymentsController {
     return this.companies.findOne({ where });
   }
 
-  private async upsertInvoice(companyId: string, invoice: Stripe.Invoice, paymentStatus: PaymentStatus) {
+  private async upsertInvoice(
+    companyId: string,
+    invoice: Stripe.Invoice,
+    paymentStatus: PaymentStatus,
+  ) {
     const stripeInvoiceId = invoice.id || null;
     const existing = stripeInvoiceId
       ? await this.invoices.findOne({ where: { stripeInvoiceId } })
@@ -254,9 +389,45 @@ export class PaymentsController {
     const invoiceWithSubscription = invoice as Stripe.Invoice & {
       subscription?: string | Stripe.Subscription | null;
     };
-    return typeof invoiceWithSubscription.subscription === 'string'
-      ? invoiceWithSubscription.subscription
+    return this.getExpandableId(invoiceWithSubscription.subscription);
+  }
+
+  private async retrieveCheckoutSessionFromPaymentIntent(
+    paymentIntent: Stripe.PaymentIntent,
+  ) {
+    const sessionId = this.getCheckoutSessionIdFromPaymentIntent(paymentIntent);
+    if (!sessionId || !this.stripe) return null;
+
+    try {
+      return await this.stripe.checkout.sessions.retrieve(sessionId);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown Stripe error';
+      console.warn('Could not retrieve checkout session for payment intent', {
+        paymentIntentId: paymentIntent.id,
+        sessionId,
+        error: message,
+      });
+      return null;
+    }
+  }
+
+  private getCheckoutSessionIdFromPaymentIntent(
+    paymentIntent: Stripe.PaymentIntent,
+  ) {
+    const paymentIntentWithDetails = paymentIntent as Stripe.PaymentIntent & {
+      payment_details?: { order_reference?: string | null } | null;
+    };
+    const orderReference =
+      paymentIntentWithDetails.payment_details?.order_reference;
+    return typeof orderReference === 'string' &&
+      orderReference.startsWith('cs_')
+      ? orderReference
       : null;
+  }
+
+  private getExpandableId(value: string | { id?: string } | null | undefined) {
+    return typeof value === 'string' ? value : value?.id || null;
   }
 
   private getAppUrl() {
@@ -286,7 +457,8 @@ export class PaymentsController {
 
   private getStripePriceIdOrThrow(plan: Plan) {
     const config = this.getStripePriceConfigName(plan.slug);
-    const priceId = plan.stripePriceId?.trim() || this.config.get<string>(config)?.trim();
+    const priceId =
+      plan.stripePriceId?.trim() || this.config.get<string>(config)?.trim();
 
     if (!priceId) {
       throw new BadRequestException({
