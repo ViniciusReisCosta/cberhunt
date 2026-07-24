@@ -19,6 +19,8 @@ import { ApiKeysController } from './settings/api-keys.controller';
 import { InvoicesController } from './settings/invoices.controller';
 import { NotificationPreferencesController } from './settings/notification-preferences.controller';
 import { QuickRepliesController } from './settings/quick-replies.controller';
+import { WhatsAppController } from './whatsapp/whatsapp.controller';
+import { WhatsAppService } from './whatsapp/whatsapp.service';
 
 @Module({
   imports: [
@@ -52,7 +54,8 @@ import { QuickRepliesController } from './settings/quick-replies.controller';
     InvoicesController,
     PaymentsController,
     PublicController,
+    WhatsAppController,
   ],
-  providers: [AuthService],
+  providers: [AuthService, WhatsAppService],
 })
 export class AppModule {}

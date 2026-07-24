@@ -21,6 +21,7 @@ import { Conversation } from '../database/entities/conversation.entity';
 import { ConversationTag } from '../database/entities/conversation-tag.entity';
 import { Message } from '../database/entities/message.entity';
 import { User } from '../database/entities/user.entity';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Controller('conversations')
 export class ConversationsController {
@@ -40,6 +41,7 @@ export class ConversationsController {
     private readonly chatbotRules: Repository<ChatbotRule>,
     @InjectRepository(ConversationTag)
     private readonly tags: Repository<ConversationTag>,
+    private readonly whatsapp: WhatsAppService,
   ) {}
 
   @Get()
@@ -184,6 +186,10 @@ export class ConversationsController {
 
     if (authenticatedUser) {
       this.auth.ensureCompanyAccess(authenticatedUser, conversation.companyId);
+    }
+
+    if (senderType === 'agent') {
+      await this.whatsapp.sendConversationText(conversation, content);
     }
 
     const message = await this.messages.save(

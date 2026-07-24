@@ -54,6 +54,16 @@ STRIPE_PRICE_ENTERPRISE=
 
 For checkout, `STRIPE_PRICE_*` must be Stripe Price IDs that start with `price_`. Do not use numeric amounts like `9700`.
 
+WhatsApp Cloud API variables:
+
+```env
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=
+WHATSAPP_GRAPH_API_VERSION=v23.0
+WHATSAPP_ACCESS_TOKEN=
+```
+
+`WHATSAPP_WEBHOOK_VERIFY_TOKEN` must match the token configured in the Meta App webhook. `WHATSAPP_ACCESS_TOKEN` is an optional fallback; for multi-company use, store the access token in each WhatsApp channel and use the channel `accountId` as the WhatsApp Phone Number ID.
+
 ## Seed
 
 `npm run db:prepare:dev` synchronizes the local schema and runs the structural seed.
@@ -157,3 +167,4 @@ Override with `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD`.
 - `GET /api/invoices`
 - `POST /api/payments/subscribe`
 - `POST /api/payments/webhook`
+- `GET|POST /api/whatsapp/webhook`
